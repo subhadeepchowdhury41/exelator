@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { io } from "socket.io-client";
 import { DataGrid, GridRowParams } from "@mui/x-data-grid";
 import {
@@ -12,10 +12,22 @@ import {
 } from "@mui/material";
 import SparkMD5 from "spark-md5";
 import * as XLSX from "xlsx";
-import axios from "axios";
+import { sendPost } from "../utils/ApiRequest";
+import { AxiosResponse } from "axios";
 
-// Connect to the WebSocket server
-const socket = io("http://localhost:5000");
+const socket = io("http://localhost:5000", {
+  extraHeaders: {
+    Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+  },
+});
+
+const sendFile = async (file: File): Promise<AxiosResponse> => {
+  const formData = new FormData();
+  formData.append("file", file);
+  return await sendPost("upload", formData, {
+    "Content-Type": "multipart/form-data",
+  });
+};
 
 const openFile = async () => {
   try {
@@ -58,35 +70,47 @@ const computeChecksums = (rows: any[]) => {
 
 const watchFile = async (
   fileHandle: FileSystemFileHandle,
-  filename: string
+  filename: string,
+  uniqueColIndex: number
 ) => {
   let previousRows = await readFile(fileHandle);
   let previousChecksums = computeChecksums(previousRows);
 
   const checkForChanges = async () => {
     const currentRows = await readFile(fileHandle);
-    const currentChecksums = computeChecksums(currentRows);
+    if (currentRows.length === previousRows.length) {
+      const currentChecksums = computeChecksums(currentRows);
 
-    const changedRows = currentChecksums
-      .map((checksum, index) =>
-        checksum !== previousChecksums[index] ? currentRows[index] : null
-      )
-      .filter((row) => row !== null)
-      .map((row) => {
-        return row.reduce((acc, value, idx) => {
-          acc["id"] = row[0];
-          acc[`column_${idx}`] = value;
-          return acc;
-        }, {});
-      });
+      const changedRows = currentChecksums
+        .map((checksum, index) =>
+          checksum !== previousChecksums[index] ? currentRows[index] : null
+        )
+        .filter((row) => row !== null)
+        .map((row: any) => {
+          return row.reduce((acc: any, value: any, idx: number) => {
+            acc["id"] = row[uniqueColIndex];
+            acc[`column_${idx}`] = value;
+            return acc;
+          }, {});
+        });
+
+      if (changedRows.length > 0) {
+        console.log("UPDATE ROWS EMIT EVENT", changedRows);
+        socket.emit("updateRows", {
+          filename,
+          rows: changedRows,
+          uniqueColIndex,
+        });
+      }
+      if (changedRows.length > 0) {
+        previousRows = currentRows;
+        previousChecksums = currentChecksums;
+      }
+    }
 
     const addedRows = currentRows.slice(previousRows.length);
     const deletedRows = previousRows.slice(currentRows.length);
 
-    if (changedRows.length > 0) {
-      console.log("UPDATE ROWS EMIT EVENT", changedRows);
-      socket.emit("updateRows", { filename, rows: changedRows });
-    }
     if (addedRows.length > 0) {
       console.log("ADD ROWS EMIT EVENT");
       socket.emit("addRows", { filename, rows: addedRows });
@@ -96,12 +120,10 @@ const watchFile = async (
     }
 
     if (
-      changedRows.length > 0 ||
       addedRows.length > 0 ||
       deletedRows.length > 0
     ) {
       previousRows = currentRows;
-      previousChecksums = currentChecksums;
     }
   };
 
@@ -115,6 +137,7 @@ const FileWatcher = () => {
   const [open, setOpen] = useState(false);
   const [selectedRow, setSelectedRow] = useState<any>(null);
   const [filename, setFilename] = useState<string>("");
+  const [uniqueColIndex, setUniqueColIndex] = useState(0);
 
   useEffect(() => {
     socket.on("receiveUpdateRows", (data) => {
@@ -125,7 +148,8 @@ const FileWatcher = () => {
         data.rows.forEach((row: any) => {
           console.log("xxxxxxxxxxx", row, updatedRows);
           const index = updatedRows.findIndex(
-            (r) => r.column_0 === row.column_0
+            (r: any) =>
+              r["column_" + uniqueColIndex] === row["column_" + uniqueColIndex]
           );
           if (index !== -1) {
             updatedRows[index] = row;
@@ -158,26 +182,21 @@ const FileWatcher = () => {
     if (fileData) {
       const { fileHandle, file } = fileData;
 
-      // Upload file to server
-      const formData = new FormData();
-      formData.append("file", file);
-      const response = await axios.post(
-        "http://localhost:5000/upload",
-        formData
-      );
+      const response = await sendFile(file);
+
       const { filename } = response.data;
       setFilename(filename);
 
       const rows = await readFile(fileHandle);
 
-      const headerRow = rows[0];
+      const headerRow: any = rows[0];
       const columns = headerRow.map((column: string, index: number) => ({
         field: `column_${index}`,
         headerName: column,
         width: 150,
       }));
 
-      const dataRows = rows.slice(1).map((row, index) => ({
+      const dataRows = rows.slice(1).map((row: any, index) => ({
         id: index,
         ...row.reduce((acc: any, value: any, idx: number) => {
           acc[`column_${idx}`] = value;
@@ -187,8 +206,8 @@ const FileWatcher = () => {
 
       setColumns(columns);
       setRows(dataRows);
-      console.log(dataRows);
-      watchFile(fileHandle, filename);
+      console.log(columns);
+      watchFile(fileHandle, filename, uniqueColIndex);
     }
   };
 
@@ -204,7 +223,7 @@ const FileWatcher = () => {
   const handleSave = async () => {
     const updatedRow = {
       id: selectedRow.id,
-      ...Object.keys(selectedRow).reduce((acc, key) => {
+      ...Object.keys(selectedRow).reduce((acc: any, key) => {
         if (key.startsWith("column_")) {
           acc[key] = selectedRow[key];
         }
@@ -212,14 +231,15 @@ const FileWatcher = () => {
       }, {}),
     };
 
-    await axios.post("http://localhost:5000/update_row", {
+    await sendPost("update_row", {
       filename,
       rowId: updatedRow.id,
       updatedRow,
+      uniqueColIndex,
     });
 
-    setRows((prevRows) =>
-      prevRows.map((row) => (row.id === updatedRow.id ? updatedRow : row))
+    setRows((prevRows: any) =>
+      prevRows.map((row: any) => (row.id === updatedRow.id ? updatedRow : row))
     );
     setOpen(false);
   };
@@ -249,7 +269,7 @@ const FileWatcher = () => {
         rows={rows}
         columns={columns}
         getRowClassName={getRowClassName}
-        getRowId={(row) => row.column_0}
+        getRowId={(row: any) => row["column_" + uniqueColIndex]}
         autoPageSize
         onRowClick={handleRowClick}
       />
@@ -263,7 +283,9 @@ const FileWatcher = () => {
                 <TextField
                   key={key}
                   margin="dense"
-                  label={key}
+                  label={
+                    columns[parseInt(key.replace("column_", ""))].headerName
+                  }
                   fullWidth
                   value={selectedRow[key]}
                   onChange={(e) =>

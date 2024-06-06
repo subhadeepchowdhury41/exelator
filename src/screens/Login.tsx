@@ -1,9 +1,22 @@
 import { Box, Button, Card, TextField, Typography } from "@mui/material";
 import { useState } from "react";
 import { Colors } from "../utils/Theme";
+import { sendPost } from "../utils/ApiRequest";
+import { useNavigate } from "react-router-dom";
 
 const Login = () => {
-  const [showPass, setShowPass] = useState(false);
+  const navigate = useNavigate();
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const handleLogin = async () => {
+    await sendPost("login", {
+      username,
+      password,
+    }).then((res) => {
+      localStorage.setItem("access_token", res.data["access_token"]);
+      navigate('/dashboard');
+    });
+  };
   return (
     <>
       <Box
@@ -43,16 +56,27 @@ const Login = () => {
               Log in
             </Typography>
           </Box>
-          <TextField fullWidth label="Name" />
-          <TextField fullWidth label="Email" />
-          <TextField fullWidth label="Password" type="password" />
+          <TextField
+            fullWidth
+            label="Username"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+          />
+          <TextField
+            fullWidth
+            label="Password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
           <Button
             disableElevation
             fullWidth
+            onClick={handleLogin}
             sx={{ bgcolor: Colors.primary, borderRadius: "23px" }}
             variant="contained"
           >
-            Sign up
+            Log in
           </Button>
         </Card>
       </Box>
