@@ -71,17 +71,24 @@ const watchFile = async (
       .map((checksum, index) =>
         checksum !== previousChecksums[index] ? currentRows[index] : null
       )
-      .filter((row) => row !== null);
+      .filter((row) => row !== null)
+      .map((row) => {
+        return row.reduce((acc, value, idx) => {
+          acc["id"] = row[0];
+          acc[`column_${idx}`] = value;
+          return acc;
+        }, {});
+      });
 
     const addedRows = currentRows.slice(previousRows.length);
     const deletedRows = previousRows.slice(currentRows.length);
 
     if (changedRows.length > 0) {
-      console.log('UPDATE ROWS EMIT EVENT', changedRows.map(row => row.id));
+      console.log("UPDATE ROWS EMIT EVENT", changedRows);
       socket.emit("updateRows", { filename, rows: changedRows });
     }
     if (addedRows.length > 0) {
-      console.log('ADD ROWS EMIT EVENT');
+      console.log("ADD ROWS EMIT EVENT");
       socket.emit("addRows", { filename, rows: addedRows });
     }
     if (deletedRows.length > 0) {
@@ -111,11 +118,15 @@ const FileWatcher = () => {
 
   useEffect(() => {
     socket.on("receiveUpdateRows", (data) => {
-      console.log('UPDATE ROWS RECEIVE EVENT', data.rows);
+      console.log("UPDATE ROWS RECEIVE EVENT", data.rows);
+      console.log("PREV ROWS", rows);
       setRows((prevRows) => {
         const updatedRows = [...prevRows];
         data.rows.forEach((row: any) => {
-          const index = updatedRows.findIndex((r) => r.id === row.id);
+          console.log("xxxxxxxxxxx", row, updatedRows);
+          const index = updatedRows.findIndex(
+            (r) => r.column_0 === row.column_0
+          );
           if (index !== -1) {
             updatedRows[index] = row;
           }
@@ -125,7 +136,7 @@ const FileWatcher = () => {
     });
 
     socket.on("receiveAddRows", (data) => {
-      console.log('ADD ROWS RECEIVE EVENT');
+      console.log("ADD ROWS RECEIVE EVENT");
       setRows((prevRows) => [...prevRows, ...data.rows]);
     });
 
@@ -141,28 +152,6 @@ const FileWatcher = () => {
       socket.off("receiveDeleteRows");
     };
   }, []);
-
-  // const handleFileChange = (newChangedRows: any[], allRows: any[]) => {
-  //   console.log(newChangedRows);
-  //   setChangedRows(
-  //     newChangedRows.map((row, index) => ({
-  //       id: index,
-  //       ...row.reduce((acc: any, value: any, idx: number) => {
-  //         acc[`column_${idx}`] = value;
-  //         return acc;
-  //       }, {}),
-  //     }))
-  //   );
-  //   setRows(
-  //     allRows.slice(1).map((row, index) => ({
-  //       id: index,
-  //       ...row.reduce((acc: any, value: any, idx: number) => {
-  //         acc[`column_${idx}`] = value;
-  //         return acc;
-  //       }, {}),
-  //     }))
-  //   );
-  // };
 
   const handleOpenFile = async () => {
     const fileData = await openFile();
@@ -244,7 +233,7 @@ const FileWatcher = () => {
       style={{
         width: "100%",
         padding: "0 1em",
-        height: '600px'
+        height: "600px",
       }}
     >
       <Button
@@ -260,7 +249,7 @@ const FileWatcher = () => {
         rows={rows}
         columns={columns}
         getRowClassName={getRowClassName}
-        getRowId={(row) => row.id}
+        getRowId={(row) => row.column_0}
         autoPageSize
         onRowClick={handleRowClick}
       />

@@ -94,6 +94,7 @@ def update_file_with_changes(data, change_type):
 
     if change_type == 'update':
         for row in data['rows']:
+            print(row)
             row_id = row['id']
             for key, value in row.items():
                 column_name = key.replace("column_", "")
