@@ -1,30 +1,23 @@
-# React + TypeScript + Vite
+## Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+`npm i`
+`npm run dev`
 
-Currently, two official plugins are available:
+## Backend
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+`python3 -m venv ENV_NAME`
+`source ENV_NAME/bin/activate`
+`pip3 install -r requirements.txt`
+`python3 main.py`
 
-## Expanding the ESLint configuration
+# status
 
-If you are developing a production application, we recommend updating the configuration to enable type aware lint rules:
+1. *updateRow EVENT* and *updateRow REST Call* has been implemented that notifies all the clients and changes the File at server.
 
-- Configure the top-level `parserOptions` property like this:
+2. *Pop up card* has been implemented.
 
-```js
-export default {
-  // other rules...
-  parserOptions: {
-    ecmaVersion: 'latest',
-    sourceType: 'module',
-    project: ['./tsconfig.json', './tsconfig.node.json'],
-    tsconfigRootDir: __dirname,
-  },
-}
-```
+3. *File Polling* from local directory is done and updates in rows are being identified.
 
-- Replace `plugin:@typescript-eslint/recommended` to `plugin:@typescript-eslint/recommended-type-checked` or `plugin:@typescript-eslint/strict-type-checked`
-- Optionally add `plugin:@typescript-eslint/stylistic-type-checked`
-- Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and add `plugin:react/recommended` & `plugin:react/jsx-runtime` to the `extends` list
+4. Securing the Network calls through *JWT Auth* has been done.
+
+5. *Login*, *Signup* and *Protected Route* has been implemented at frontend.
